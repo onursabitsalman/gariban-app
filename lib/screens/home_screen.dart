@@ -1,0 +1,369 @@
+import 'package:flutter/material.dart';
+import 'package:gariban/models/payment.dart';
+import 'package:gariban/widgets/payment_card.dart';
+import 'package:gariban/widgets/dialogs/add_payment_dialog.dart';
+import 'package:gariban/services/database_service.dart';
+import 'package:gariban/models/category.dart';
+import 'package:gariban/screens/statistics_screen.dart';
+import 'package:gariban/widgets/month_year_picker.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final List<Payment> payments = [];
+  final DatabaseService _databaseService = DatabaseService.instance;
+  Category? _selectedFilterCategory;
+  DateTime _selectedMonth = DateTime.now();
+  bool _showOverdueOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPayments();
+  }
+
+  Future<void> _loadPayments() async {
+    final loadedPayments = await _databaseService.getAllPayments();
+    setState(() {
+      payments.clear();
+      payments.addAll(loadedPayments);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    List<Payment> filteredPayments = payments.where((payment) {
+      bool sameMonth = payment.dueDate.month == _selectedMonth.month &&
+          payment.dueDate.year == _selectedMonth.year;
+      bool matchesCategory = _selectedFilterCategory == null ||
+          payment.category.id == _selectedFilterCategory!.id;
+      bool isOverdue = _showOverdueOnly
+          ? !payment.isPaid && payment.dueDate.isBefore(DateTime.now())
+          : true;
+      
+      return sameMonth && matchesCategory && isOverdue;
+    }).toList();
+
+    filteredPayments.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
+    // Aylık toplam hesapla
+    final double monthlyTotal = filteredPayments.fold(0, (sum, payment) => sum + payment.amount);
+    final int paidCount = filteredPayments.where((p) => p.isPaid).length;
+
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Theme.of(context).primaryColor,
+        title: const Text(
+          'Gariban',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 1.2,
+            shadows: [
+              Shadow(
+                offset: Offset(1, 1),
+                blurRadius: 2,
+                color: Colors.black26,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(51),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.filter_list, color: Colors.white.withAlpha(230)),
+              onPressed: _showFilterDialog,
+              tooltip: 'Filtrele',
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(51),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.bar_chart, color: Colors.white.withAlpha(230)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StatisticsScreen(
+                      payments: payments,
+                      selectedMonth: _selectedMonth,
+                    ),
+                  ),
+                );
+              },
+              tooltip: 'İstatistikler',
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            color: Theme.of(context).primaryColor,
+            child: Column(
+              children: [
+                MonthYearPicker(
+                  selectedDate: _selectedMonth,
+                  onChanged: (date) {
+                    setState(() {
+                      _selectedMonth = date;
+                    });
+                  },
+                ),
+                if (filteredPayments.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Toplam Tutar',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            Text(
+                              '₺${monthlyTotal % 1 == 0 
+                                ? monthlyTotal.toInt().toString() 
+                                : monthlyTotal.toStringAsFixed(2).replaceAll('.', ',')}',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'Ödenen',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            Text(
+                              '$paidCount / ${filteredPayments.length}',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_selectedFilterCategory != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Chip(
+                label: Text('Kategori: ${_selectedFilterCategory!.name}'),
+                deleteIcon: const Icon(Icons.close),
+                onDeleted: () {
+                  setState(() {
+                    _selectedFilterCategory = null;
+                  });
+                },
+              ),
+            ),
+          Expanded(
+            child: filteredPayments.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.payment_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}\niçin ödeme bulunamadı',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: filteredPayments.length,
+                    itemBuilder: (context, index) {
+                      return PaymentCard(
+                        payment: filteredPayments[index],
+                        onTap: () => _togglePaymentStatus(filteredPayments[index]),
+                        onDelete: () => _deletePayment(filteredPayments[index]),
+                        onEdit: () => _editPayment(filteredPayments[index]),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddPaymentDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Yeni Ödeme'),
+      ),
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık'
+    ];
+    return months[month - 1];
+  }
+
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Filtrele'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Gecikmiş ödemeler filtresi
+              ListTile(
+                leading: const Icon(Icons.warning, color: Colors.red),
+                title: const Text('Ödemesi Geçmişler'),
+                trailing: Switch(
+                  value: _showOverdueOnly,
+                  onChanged: (value) {
+                    setState(() {
+                      _showOverdueOnly = value;
+                      _selectedFilterCategory = null;
+                    });
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+              const Divider(),
+              // Kategori listesi
+              ...Categories.defaultCategories.map((category) => ListTile(
+                    leading: Icon(category.icon, color: category.color),
+                    title: Text(category.name),
+                    onTap: () {
+                      setState(() {
+                        _selectedFilterCategory = category;
+                        _showOverdueOnly = false;
+                      });
+                      Navigator.pop(context);
+                    },
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _togglePaymentStatus(Payment payment) async {
+    final updatedPayment = Payment(
+      id: payment.id,
+      title: payment.title,
+      amount: payment.amount,
+      dueDate: payment.dueDate,
+      category: payment.category,
+      frequency: payment.frequency,
+      isPaid: !payment.isPaid,
+    );
+    await _databaseService.updatePayment(updatedPayment);
+    await _loadPayments();
+  }
+
+  void _deletePayment(Payment payment) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ödemeyi Sil'),
+        content: Text(payment.frequency != PaymentFrequency.once
+            ? 'Bu tekrarlı ödemeyi ve gelecek ödemelerini silmek istediğinizden emin misiniz?'
+            : 'Bu ödemeyi silmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (payment.frequency != PaymentFrequency.once) {
+                await _databaseService
+                    .deleteRecurringPayments(payment.parentUid ?? payment.id);
+              } else {
+                await _databaseService.deletePayment(payment.id);
+              }
+              await _loadPayments();
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editPayment(Payment payment) async {
+    final Payment? updatedPayment = await showDialog<Payment>(
+      context: context,
+      builder: (context) => AddPaymentDialog(payment: payment),
+    );
+
+    if (updatedPayment != null) {
+      await _databaseService.updateRecurringPayment(payment.parentUid ?? payment.id, updatedPayment);
+      await _loadPayments();
+    }
+  }
+
+  void _showAddPaymentDialog() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => const AddPaymentDialog(),
+    );
+
+    if (result != null) {
+      final payment = result['payment'] as Payment;
+      final repeatCount = result['repeatCount'] as int;
+      await _databaseService.insertPaymentWithRecurrence(payment, repeatCount: repeatCount);
+      await _loadPayments();
+    }
+  }
+}
