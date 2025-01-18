@@ -85,4 +85,7 @@ GoogleService-Info.plist
 .fvm/
 
 # Mason dosyaları
-.mason/ 
+.mason/
+
+# GitHub Actions
+.github/.DS_Store 
