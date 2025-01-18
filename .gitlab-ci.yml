@@ -13,7 +13,7 @@ analiz_ve_test:
     - flutter analyze
     - flutter test
   only:
-    - main
+    - master
     - develop
     - merge_requests
 
@@ -25,7 +25,7 @@ android_build:
     paths:
       - build/app/outputs/flutter-apk/app-release.apk
   only:
-    - main
+    - master
     - tags
 
 ios_build:
@@ -36,5 +36,5 @@ ios_build:
     paths:
       - build/ios/iphoneos
   only:
-    - main
+    - master
     - tags 
