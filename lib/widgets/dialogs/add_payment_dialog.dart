@@ -14,9 +14,7 @@ class AddPaymentDialog extends StatefulWidget {
 class _AddPaymentDialogState extends State<AddPaymentDialog> {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
-  final repeatCountController = TextEditingController(text: '12');
   late Category _selectedCategory;
-  late PaymentFrequency _selectedFrequency;
   late DateTime selectedDate;
 
   @override
@@ -26,11 +24,9 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
       titleController.text = widget.payment!.title;
       amountController.text = widget.payment!.amount.toString();
       _selectedCategory = widget.payment!.category;
-      _selectedFrequency = widget.payment!.frequency;
       selectedDate = widget.payment!.dueDate;
     } else {
       _selectedCategory = Categories.defaultCategories.first;
-      _selectedFrequency = PaymentFrequency.once;
       selectedDate = DateTime.now();
     }
   }
@@ -39,19 +35,31 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
-      backgroundColor: Colors.deepPurple[50],
+      backgroundColor: Colors.white,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              widget.payment != null ? 'Ödemeyi Düzenle' : 'Yeni Ödeme Ekle',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.payment != null ? 'Ödemeyi Düzenle' : 'Yeni Ödeme',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  splashRadius: 24,
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             TextFormField(
@@ -60,18 +68,18 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 labelText: 'Başlık',
                 prefixIcon: const Icon(Icons.title),
                 filled: true,
-                fillColor: Colors.deepPurple[50],
+                fillColor: Colors.grey[50],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.deepPurple[200]!),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.deepPurple[200]!),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.deepPurple),
+                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
                 ),
               ),
             ),
@@ -84,129 +92,120 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
                 prefixIcon: const Icon(Icons.attach_money),
                 suffixText: '₺',
                 filled: true,
-                fillColor: Colors.deepPurple[50],
+                fillColor: Colors.grey[50],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.deepPurple[200]!),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.deepPurple[200]!),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.deepPurple),
+                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
                 ),
+                errorText: amountController.text.isNotEmpty && 
+                          double.tryParse(amountController.text.replaceAll(',', '.')) == 0 
+                    ? 'Geçerli bir tutar giriniz' 
+                    : null,
               ),
               onChanged: (value) {
-                amountController.text = value.replaceAll(',', '.');
-                amountController.selection = TextSelection.fromPosition(
-                  TextPosition(offset: amountController.text.length),
-                );
+                if (value.isEmpty) {
+                  amountController.text = '';
+                  return;
+                }
+
+                final validFormat = RegExp(r'^\d*[,.]?\d{0,2}$');
+                
+                if (!validFormat.hasMatch(value)) {
+                  String cleanValue = value.replaceAll(RegExp(r'[^\d,.]'), '');
+                  
+                  final separators = cleanValue.replaceAll(RegExp(r'[^\d]'), '');
+                  if (separators.length > 1) {
+                    int firstSepIndex = cleanValue.indexOf(RegExp(r'[,.]'));
+                    cleanValue = cleanValue.substring(0, firstSepIndex + 1) +
+                        cleanValue.substring(firstSepIndex + 1).replaceAll(RegExp(r'[,.]'), '');
+                  }
+                  
+                  final parts = cleanValue.split(RegExp(r'[,.]'));
+                  if (parts.length > 1 && parts[1].length > 2) {
+                    cleanValue = '${parts[0]},${parts[1].substring(0, 2)}';
+                  }
+                  
+                  amountController.value = TextEditingValue(
+                    text: cleanValue,
+                    selection: TextSelection.collapsed(offset: cleanValue.length),
+                  );
+                }
               },
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
+                color: Colors.grey[50],
+                border: Border.all(color: Colors.grey[300]!),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: DropdownButton<Category>(
-                value: _selectedCategory,
-                isExpanded: true,
-                underline: const SizedBox(),
-                items: Categories.defaultCategories.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Row(
-                      children: [
-                        Icon(category.icon, color: category.color),
-                        const SizedBox(width: 12),
-                        Text(category.name),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedCategory = value);
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (widget.payment == null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DropdownButton<PaymentFrequency>(
-                  value: _selectedFrequency,
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<Category>(
+                  value: _selectedCategory,
                   isExpanded: true,
-                  underline: const SizedBox(),
-                  items: PaymentFrequency.values.map((frequency) {
+                  items: Categories.defaultCategories.map((category) {
                     return DropdownMenuItem(
-                      value: frequency,
-                      child: Text(frequency.label),
+                      value: category,
+                      child: Row(
+                        children: [
+                          Icon(category.icon, color: category.color),
+                          const SizedBox(width: 12),
+                          Text(
+                            category.name,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() => _selectedFrequency = value);
+                      setState(() => _selectedCategory = value);
                     }
                   },
                 ),
               ),
-              if (_selectedFrequency != PaymentFrequency.once) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: repeatCountController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Kaç Kez Tekrarlanacak',
-                    prefixIcon: const Icon(Icons.repeat),
-                    filled: true,
-                    fillColor: Colors.deepPurple[50],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.deepPurple[200]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.deepPurple[200]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.deepPurple),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.calendar_today),
-              label: Text('Son Ödeme: ${selectedDate.toString().split(' ')[0]}'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () async {
+            InkWell(
+              onTap: () async {
                 final DateTime? picked = await showDatePicker(
                   context: context,
                   initialDate: selectedDate,
-                  firstDate: DateTime.now(),
+                  firstDate: DateTime(2000),
                   lastDate: DateTime.now().add(const Duration(days: 365)),
                 );
                 if (picked != null) {
                   setState(() => selectedDate = picked);
                 }
               },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Son Ödeme: ${selectedDate.toString().split(' ')[0]}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -214,39 +213,43 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
                   child: const Text('İptal'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: () {
                     if (titleController.text.isNotEmpty && amountController.text.isNotEmpty) {
-                      final amount = double.tryParse(amountController.text.replaceAll(',', '.')) ?? 0.0;
-                      final payment = Payment(
-                        id: widget.payment?.id ?? DateTime.now().toString(),
-                        title: titleController.text,
-                        amount: amount,
-                        dueDate: selectedDate,
-                        category: _selectedCategory,
-                        frequency: _selectedFrequency,
-                        isPaid: widget.payment?.isPaid ?? false,
-                      );
-                      Navigator.pop(context, {
-                        'payment': payment,
-                        'repeatCount': _selectedFrequency == PaymentFrequency.once 
-                          ? 0 
-                          : int.tryParse(repeatCountController.text) ?? 12,
-                      });
+                      String amountText = amountController.text.replaceAll(',', '.');
+                      final amount = double.tryParse(amountText) ?? 0.0;
+                      if (amount > 0) {
+                        final payment = Payment(
+                          id: widget.payment?.id ?? DateTime.now().toString(),
+                          title: titleController.text,
+                          amount: amount,
+                          dueDate: selectedDate,
+                          category: _selectedCategory,
+                          isPaid: widget.payment?.isPaid ?? false,
+                        );
+                        Navigator.pop(context, payment);
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(widget.payment != null ? 'Güncelle' : 'Ekle'),
+                  child: Text(
+                    widget.payment != null ? 'Güncelle' : 'Ekle',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
               ],
             ),
@@ -260,7 +263,6 @@ class _AddPaymentDialogState extends State<AddPaymentDialog> {
   void dispose() {
     titleController.dispose();
     amountController.dispose();
-    repeatCountController.dispose();
     super.dispose();
   }
 } 

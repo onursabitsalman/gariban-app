@@ -6,6 +6,7 @@ import 'package:gariban/services/database_service.dart';
 import 'package:gariban/models/category.dart';
 import 'package:gariban/screens/statistics_screen.dart';
 import 'package:gariban/widgets/month_year_picker.dart';
+import 'package:gariban/utils/currency_formatter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Category? _selectedFilterCategory;
   DateTime _selectedMonth = DateTime.now();
   bool _showOverdueOnly = false;
+  double _monthlyIncome = 0; // Varsayılan değer 0 olarak güncellendi
 
   @override
   void initState() {
@@ -51,9 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     filteredPayments.sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
-    // Aylık toplam hesapla
     final double monthlyTotal = filteredPayments.fold(0, (sum, payment) => sum + payment.amount);
-    final int paidCount = filteredPayments.where((p) => p.isPaid).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -103,11 +103,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => StatisticsScreen(
                       payments: payments,
                       selectedMonth: _selectedMonth,
+                      monthlyIncome: _monthlyIncome,
                     ),
                   ),
                 );
               },
               tooltip: 'İstatistikler',
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(51),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.settings, color: Colors.white.withAlpha(230)),
+              onPressed: _showSettingsDialog,
+              tooltip: 'Ayarlar',
             ),
           ),
           const SizedBox(width: 8),
@@ -130,42 +143,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (filteredPayments.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Toplam Tutar',
-                              style: TextStyle(color: Colors.white70),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Aylık Kazanç',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Text(
+                                  formatCurrency(_monthlyIncome),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '₺${monthlyTotal % 1 == 0 
-                                ? monthlyTotal.toInt().toString() 
-                                : monthlyTotal.toStringAsFixed(2).replaceAll('.', ',')}',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              'Ödenen',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                            Text(
-                              '$paidCount / ${filteredPayments.length}',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'Toplam Ödeme',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Text(
+                                  formatCurrency(monthlyTotal),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -264,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Gecikmiş ödemeler filtresi
               ListTile(
                 leading: const Icon(Icons.warning, color: Colors.red),
-                title: const Text('Ödemesi Geçmişler'),
+                title: const Text('Geciken Ödemeler'),
                 trailing: Switch(
                   value: _showOverdueOnly,
                   onChanged: (value) {
@@ -303,7 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
       amount: payment.amount,
       dueDate: payment.dueDate,
       category: payment.category,
-      frequency: payment.frequency,
       isPaid: !payment.isPaid,
     );
     await _databaseService.updatePayment(updatedPayment);
@@ -311,34 +326,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _deletePayment(Payment payment) async {
-    showDialog(
+    final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Ödemeyi Sil'),
-        content: Text(payment.frequency != PaymentFrequency.once
-            ? 'Bu tekrarlı ödemeyi ve gelecek ödemelerini silmek istediğinizden emin misiniz?'
-            : 'Bu ödemeyi silmek istediğinizden emin misiniz?'),
+        content: Text('Bu ödemeyi silmek istediğinizden emin misiniz?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('İptal'),
           ),
           TextButton(
-            onPressed: () async {
-              if (payment.frequency != PaymentFrequency.once) {
-                await _databaseService
-                    .deleteRecurringPayments(payment.parentUid ?? payment.id);
-              } else {
-                await _databaseService.deletePayment(payment.id);
-              }
-              await _loadPayments();
-              if (mounted) Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Sil', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+
+    if (shouldDelete == true && mounted) {
+      await _databaseService.deletePayment(payment.id);
+      await _loadPayments();
+    }
   }
 
   void _editPayment(Payment payment) async {
@@ -348,22 +357,108 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (updatedPayment != null) {
-      await _databaseService.updateRecurringPayment(payment.parentUid ?? payment.id, updatedPayment);
+      await _databaseService.updatePayment(updatedPayment);
       await _loadPayments();
     }
   }
 
   void _showAddPaymentDialog() async {
-    final result = await showDialog<Map<String, dynamic>>(
+    final payment = await showDialog<Payment>(
       context: context,
       builder: (context) => const AddPaymentDialog(),
     );
 
-    if (result != null) {
-      final payment = result['payment'] as Payment;
-      final repeatCount = result['repeatCount'] as int;
-      await _databaseService.insertPaymentWithRecurrence(payment, repeatCount: repeatCount);
+    if (payment != null) {
+      await _databaseService.insertPayment(payment);
       await _loadPayments();
     }
+  }
+
+  void _showSettingsDialog() {
+    final controller = TextEditingController(
+      text: _monthlyIncome % 1 == 0 
+        ? _monthlyIncome.toInt().toString() 
+        : _monthlyIncome.toString()
+    );
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ayarlar'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Aylık Kazanç',
+                prefixIcon: const Icon(Icons.account_balance_wallet),
+                suffixText: '₺',
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                errorText: controller.text.isNotEmpty && double.tryParse(controller.text.replaceAll(',', '.')) == 0 
+                  ? 'Geçerli bir tutar giriniz' 
+                  : null,
+              ),
+              onChanged: (value) {
+                // Boş değer kontrolü
+                if (value.isEmpty) {
+                  controller.text = '';
+                  return;
+                }
+
+                // Geçerli para formatı kontrolü
+                final validFormat = RegExp(r'^\d*[,.]?\d{0,2}$');
+                
+                if (!validFormat.hasMatch(value)) {
+                  // Geçersiz karakterleri temizle
+                  String cleanValue = value.replaceAll(RegExp(r'[^\d,.]'), '');
+                  
+                  // Birden fazla ayraç varsa ilkini al
+                  final separators = cleanValue.replaceAll(RegExp(r'[^\d]'), '');
+                  if (separators.length > 1) {
+                    int firstSepIndex = cleanValue.indexOf(RegExp(r'[,.]'));
+                    cleanValue = cleanValue.substring(0, firstSepIndex + 1) +
+                        cleanValue.substring(firstSepIndex + 1).replaceAll(RegExp(r'[,.]'), '');
+                  }
+                  
+                  // Ondalık kısmı 2 basamakla sınırla
+                  final parts = cleanValue.split(RegExp(r'[,.]'));
+                  if (parts.length > 1 && parts[1].length > 2) {
+                    cleanValue = '${parts[0]},${parts[1].substring(0, 2)}';
+                  }
+                  
+                  controller.value = TextEditingValue(
+                    text: cleanValue,
+                    selection: TextSelection.collapsed(offset: cleanValue.length),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final amount = double.tryParse(controller.text.replaceAll(',', '.'));
+              if (amount != null && amount > 0) {
+                setState(() {
+                  _monthlyIncome = amount;
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
   }
 }

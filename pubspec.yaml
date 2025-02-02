@@ -37,7 +37,6 @@ dependencies:
   sqflite: ^2.3.2
   path: ^1.8.3
   fl_chart: ^0.66.2
-  uuid: ^4.3.3
 
 dev_dependencies:
   # The "flutter_lints" package below contains a set of recommended lints to

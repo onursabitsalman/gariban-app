@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:gariban/models/payment.dart';
 import 'package:gariban/models/category.dart';
+import 'package:gariban/utils/currency_formatter.dart';
 
 class StatisticsScreen extends StatelessWidget {
   final List<Payment> payments;
   final DateTime selectedMonth;
+  final double monthlyIncome;
 
   const StatisticsScreen({
     super.key, 
     required this.payments,
     required this.selectedMonth,
+    required this.monthlyIncome,
   });
 
   List<Payment> get _filteredPayments => payments.where((payment) {
@@ -42,7 +45,7 @@ class StatisticsScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _PaymentStatusChart(payments: _filteredPayments),
+            _PaymentStatusChart(payments: _filteredPayments, monthlyIncome: monthlyIncome),
             _CategoryPieChart(payments: _filteredPayments),
           ],
         ),
@@ -134,7 +137,7 @@ class _CategoryPieChart extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '₺${entry.value.toStringAsFixed(0)}',
+                                  formatCurrency(entry.value),
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ],
@@ -150,7 +153,7 @@ class _CategoryPieChart extends StatelessWidget {
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              '₺${total.toStringAsFixed(2)}',
+                              formatCurrency(total),
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -205,8 +208,9 @@ class _Badge extends StatelessWidget {
 
 class _PaymentStatusChart extends StatelessWidget {
   final List<Payment> payments;
+  final double monthlyIncome;
 
-  const _PaymentStatusChart({required this.payments});
+  const _PaymentStatusChart({required this.payments, required this.monthlyIncome});
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +286,7 @@ class _PaymentStatusChart extends StatelessWidget {
                             ],
                           ),
                           Text(
-                            '₺${statusData['paid']!.toStringAsFixed(2)}',
+                            formatCurrency(statusData['paid']!),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -306,7 +310,31 @@ class _PaymentStatusChart extends StatelessWidget {
                             ],
                           ),
                           Text(
-                            '₺${statusData['unpaid']!.toStringAsFixed(2)}',
+                            formatCurrency(statusData['unpaid']!),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Aylık Kazanç:'),
+                            ],
+                          ),
+                          Text(
+                            formatCurrency(statusData['income']!),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -320,7 +348,7 @@ class _PaymentStatusChart extends StatelessWidget {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            '₺${total.toStringAsFixed(2)}',
+                            formatCurrency(total),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -346,6 +374,10 @@ class _PaymentStatusChart extends StatelessWidget {
         unpaid += payment.amount;
       }
     }
-    return {'paid': paid, 'unpaid': unpaid};
+    return {
+      'paid': paid,
+      'unpaid': unpaid,
+      'income': monthlyIncome,
+    };
   }
 } 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gariban/models/payment.dart';
+import 'package:gariban/utils/currency_formatter.dart';
 
 class PaymentCard extends StatelessWidget {
   final Payment payment;
@@ -17,138 +18,127 @@ class PaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: Key(payment.id),
-      background: Container(
-        color: payment.isPaid ? Colors.orange : Colors.green,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.centerLeft,
-        child: Icon(
-          payment.isPaid ? Icons.close : Icons.check_circle,
-          color: Colors.white,
-        ),
-      ),
-      secondaryBackground: Container(
-        color: Colors.red,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.centerRight,
-        child: const Icon(
-          Icons.delete,
-          color: Colors.white,
-        ),
-      ),
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          onTap();
-          return false;
-        }
-        if (direction == DismissDirection.endToStart) {
-          onDelete();
-          return false;
-        }
-        return false;
-      },
-      child: Card(
-        margin: const EdgeInsets.all(8.0),
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            children: [
-              ListTile(
-                leading: Stack(
-                  children: [
-                    Icon(payment.category.icon, color: payment.category.color),
-                    if (!payment.isPaid && payment.dueDate.isBefore(DateTime.now()))
-                      const Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Icon(Icons.warning, color: Colors.red, size: 14),
-                      ),
-                  ],
-                ),
-                title: Text(payment.title),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tarih: ${payment.dueDate.toString().split(' ')[0]}',
-                      style: TextStyle(
-                        color: !payment.isPaid && payment.dueDate.isBefore(DateTime.now())
-                            ? Colors.red
-                            : null,
-                      ),
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: InkWell(
+        child: Column(
+          children: [
+            ListTile(
+              leading: Stack(
+                children: [
+                  Icon(payment.category.icon, color: payment.category.color),
+                  if (!payment.isPaid && payment.dueDate.isBefore(DateTime.now()))
+                    const Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Icon(Icons.warning, color: Colors.red, size: 14),
                     ),
-                    if (payment.parentUid != null || payment.frequency != PaymentFrequency.once)
+                ],
+              ),
+              title: Text(payment.title),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tarih: ${payment.dueDate.toString().split(' ')[0]}',
+                    style: TextStyle(
+                      color: !payment.isPaid && payment.dueDate.isBefore(DateTime.now())
+                          ? Colors.red
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       Text(
-                        '${payment.frequency == PaymentFrequency.daily 
-                            ? 'Günlük' 
-                            : payment.frequency == PaymentFrequency.weekly 
-                                ? 'Haftalık'
-                                : payment.frequency == PaymentFrequency.monthly 
-                                    ? 'Aylık'
-                                    : 'Yıllık'} Ödeme',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[600],
+                        formatCurrency(payment.amount),
+                        style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '₺${payment.amount % 1 == 0 
-                            ? payment.amount.toInt().toString() 
-                            : payment.amount.toStringAsFixed(2).replaceAll('.', ',')}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Text(
+                        payment.isPaid ? 'Ödendi' : 'Ödenmedi',
+                        style: TextStyle(
+                          color: payment.isPaid ? Colors.green : Colors.red,
+                          fontSize: 12,
                         ),
-                        Text(
-                          payment.isPaid ? 'Ödendi' : 'Ödenmedi',
-                          style: TextStyle(
-                            color: payment.isPaid ? Colors.green : Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  PopupMenuButton<String>(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    PopupMenuButton(
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          onTap: onEdit,
-                          child: const Row(
-                            children: [
-                              Icon(Icons.edit),
-                              SizedBox(width: 8),
-                              Text('Düzenle'),
-                            ],
-                          ),
+                    position: PopupMenuPosition.under,
+                    icon: const Icon(Icons.more_vert, color: Colors.grey),
+                    itemBuilder: (context) => <PopupMenuEntry<String>>[
+                      PopupMenuItem<String>(
+                        value: 'toggle',
+                        onTap: onTap,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              payment.isPaid ? Icons.check_box_outlined : Icons.check_box,
+                              color: payment.isPaid ? Colors.grey : Colors.green,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              payment.isPaid ? 'Ödenmedi' : 'Ödendi',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ],
                         ),
-                        PopupMenuItem(
-                          onTap: onDelete,
-                          child: const Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Sil', style: TextStyle(color: Colors.red)),
-                            ],
-                          ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        onTap: onEdit,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Düzenle',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        onTap: onDelete,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.delete, color: Colors.red),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Sil',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.red,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
